@@ -3,7 +3,7 @@
 #ifndef _LIB_ROOT4ROOT_INA219_
 #define _LIB_ROOT4ROOT_INA219_
 
-#include "Arduino.h"
+#include <Arduino.h>
 #include <Wire.h>
 
 #define DEBUG 0;

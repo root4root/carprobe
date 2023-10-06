@@ -1,9 +1,9 @@
 #ifndef VIEW_H_
 #define VIEW_H_
 
-#include "Arduino.h"
+#include <Arduino.h>
 
-#include "LiquidCrystal_I2C.h"
+#include <LiquidCrystal_I2C.h>
 #include "Root4root_VLC.h"
 
 #define REDLED 5
@@ -28,6 +28,7 @@ public:
     void red();
     void green();
     void blue();
+    void magenta();
     void black();
     void displayVoltage(uint16_t mV);
     void displayResistance(long ohms);

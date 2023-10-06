@@ -1,5 +1,5 @@
 #include "View.h"
-#include "Arduino.h"
+#include <Arduino.h>
 
 View::View(): lcd(0x27,16,2), vlc(&lcd, 16, 1, 0, 1){}
 
@@ -95,7 +95,6 @@ void View::displayCurrent(float mA, bool newMeasure = false)
         sprintf(container, "%13d %s", result, "mA");
     }
 
-    this->black();
     vlc.displayString(container);
 }
 
@@ -116,6 +115,13 @@ void View::green()
 void View::blue()
 {
     digitalWrite(REDLED, LOW);
+    digitalWrite(GREENLED, LOW);
+    digitalWrite(BLUELED, HIGH);
+}
+
+void View::magenta()
+{
+    digitalWrite(REDLED, HIGH);
     digitalWrite(GREENLED, LOW);
     digitalWrite(BLUELED, HIGH);
 }

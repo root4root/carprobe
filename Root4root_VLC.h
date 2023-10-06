@@ -1,7 +1,7 @@
 #ifndef _LIB_ROOT4ROOT_VLC_
 #define _LIB_ROOT4ROOT_VLC_
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 template <typename T>
 class Root4root_VLC

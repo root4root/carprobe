@@ -1,34 +1,37 @@
-#include "Arduino.h"
+#include <Arduino.h>
 #include "Root4root_INA219.h"
 #include "View.h"
 #include "CarProbe.h"
 
 void setup()
 {
-    pinMode(RELAY, OUTPUT);          //Power activation pin.
-    pinMode(PFET, OUTPUT);           //Power activation pin.
-    pinMode(PROBE, OUTPUT);          //Ohm meter pin
-    pinMode(PBUTTON, INPUT);         //Power activation button
-    digitalWrite(PBUTTON, HIGH);     //Enable internal pull-up resistor
+    pinMode(RELAY, OUTPUT);           //Power activation pin.
+    pinMode(PFET, OUTPUT);            //Power activation pin.
+    pinMode(PROBE, OUTPUT);           //Ohm Ω meter pin
+    pinMode(POWER_BUTTON, INPUT);     //Power activation button
+    digitalWrite(POWER_BUTTON, HIGH); //Enable internal pull-up resistor
 
-    digitalWrite(RELAY, LOW);  //External power relay (30A)
+    digitalWrite(RELAY, LOW);   //External power relay (30A)
     digitalWrite(PFET,  LOW);   //Internal PFET relay
-    digitalWrite(PROBE, LOW);  //Probe pin
+    digitalWrite(PROBE, LOW);   //Probe pin
 
-    ina219.begin(20000, 10); //Calibration, max expected current 20A, shunt resistance in mOhm
-    ina219.changeConfig(INA219_CONFIG_SHUNT_ADC_RESOLUTION_12BIT_8S_4260US, INA219_CONFIG_SHUNT_ADC_RESOLUTION_MASK);
+    ina219.begin(20000, 10);    //Calibration, max expected current 20A, shunt resistance in mOhm
+
+    ina219.changeConfig(
+        INA219_CONFIG_SHUNT_ADC_RESOLUTION_12BIT_8S_4260US,
+        INA219_CONFIG_SHUNT_ADC_RESOLUTION_MASK
+    );
 
     view.init();
 }
 
 void loop() {
 
-    if (powerButton()) {
-        return; //Go to the next loop() iteration i.e. skip code below.
+    if (powerButtonHandler()) {
+        return; //Go to the next loop() iteration
     }
 
     autoMode();
-
 }
 
 void autoMode()
@@ -37,11 +40,11 @@ void autoMode()
 
     uint16_t voltage = ina219.getBusVoltage_mV();
 
-        if (voltage < 5) { //Less than 5 mV !
-            measureResistance();
-        } else {
-            view.displayVoltage(voltage);
-        }
+    if (voltage < 5) { //Less than 5 mV !
+        measureResistance();
+    } else {
+        view.displayVoltage(voltage);
+    }
 }
 
 void measureResistance()
@@ -65,33 +68,77 @@ void measureResistance()
     view.displayResistance(voltage/(REFERENCE - voltage/1000.0));
 }
 
-bool powerButton()
+bool powerButtonHandler()
 {
-    static bool currentState = false;
-    static unsigned long previuosChangeTime = 0; //Debounce timer
+    static bool currentOutputState = false;
 
-    bool button = false;
+    bool currentButtonState = readButtonRoutine();
 
-    if (currentState == true) {
+    if (currentOutputState == true) {
         view.displayCurrent(ina219.getCurrent_mA());
     }
 
-    button = !digitalRead(10); //Inverse due to normalize ON = true OFF = false;
-
-    if ((millis() - previuosChangeTime) < BUTTON_DEBOUNCE_TIMEOUT || currentState == button) {
-        return currentState;
+    if (currentOutputState == currentButtonState) {
+        return currentOutputState;
     }
 
-    if (button) {
+    if (currentButtonState == true) {
         digitalWrite(PROBE, LOW);
         digitalWrite(PFET, HIGH);
+        view.magenta();
         view.displayCurrent(ina219.getCurrent_mA(), true);
     } else {
         digitalWrite(PFET, LOW);
+        view.black();
     }
 
-    currentState = button;
-    previuosChangeTime = millis();
+    currentOutputState = currentButtonState;
 
-    return currentState;
+    return currentOutputState;
+}
+
+bool readButtonRoutine() //strict EMI protection and debounce
+{
+    static uint16_t pushDuration = 0;
+    static uint32_t previousTime = millis();   //in case multiple buttons, could be moved level up
+    static bool normalizedButtonState = false; //which'll be returned to the caller
+
+    bool rawButtonState = digitalRead(POWER_BUTTON);
+
+    //unlock pushDuration timer, start action if button pressed
+    if (rawButtonState == PRESSED_BUTTON_STATE && pushDuration == 0) {
+        ++pushDuration;
+        previousTime = millis();
+    }
+
+    if (pushDuration == 0) { //idle guard...
+        return normalizedButtonState;
+    }
+
+    uint16_t timeDifference = millis() - previousTime;
+
+    if (timeDifference == 0) { //minimum time chunk is 1ms
+        return normalizedButtonState;
+    }
+
+    previousTime = millis();
+
+    //EMI protection, including severe ones
+    if (rawButtonState == PRESSED_BUTTON_STATE) {
+        uint16_t tempResult = pushDuration + timeDifference;
+        pushDuration = (tempResult > BUTTON_PUSH_DURATION) ? BUTTON_PUSH_DURATION : tempResult;
+    } else {
+        ++timeDifference; //decrease slightly faster to gain EMI protection even more...
+        pushDuration -= (timeDifference > pushDuration) ? pushDuration : timeDifference;
+    }
+
+    if (pushDuration == BUTTON_PUSH_DURATION) {
+        normalizedButtonState = true;
+    }
+
+    if (pushDuration == 0) {
+        normalizedButtonState = false;
+    }
+
+    return normalizedButtonState;
 }
